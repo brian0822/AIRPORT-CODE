@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>地名代字記憶站</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Barlow+Condensed:wght@500;600;700&family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0f16;
+    --board:#141c28;
+    --board-edge:#232f40;
+    --amber:#f5a623;
+    --amber-dim:#8a6423;
+    --cyan:#5fd4e0;
+    --text:#e9edf3;
+    --muted:#6f7c8f;
+    --good:#57c26a;
+    --bad:#e0605a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at 20% -10%, #16202f 0%, transparent 55%),
+      radial-gradient(ellipse at 90% 110%, #101a26 0%, transparent 50%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Noto Sans TC','Barlow Condensed',sans-serif;
+    min-height:100vh;
+    padding:0 0 60px 0;
+  }
+  .mono{font-family:'Space Mono',monospace;}
+  .cond{font-family:'Barlow Condensed',sans-serif;}
+
+  /* ---- Header ---- */
+  header{
+    border-bottom:1px solid var(--board-edge);
+    background:linear-gradient(180deg,#0f1520,#0b0f16);
+    padding:22px 20px 18px;
+    position:relative;
+    overflow:hidden;
+  }
+  header::after{
+    content:"";
+    position:absolute; left:0; right:0; bottom:0; height:3px;
+    background:repeating-linear-gradient(90deg,var(--amber) 0 14px, transparent 14px 24px);
+    opacity:.55;
+  }
+  .hdr-row{display:flex; align-items:baseline; justify-content:space-between; max-width:920px; margin:0 auto; flex-wrap:wrap; gap:8px;}
+  .brand{display:flex; align-items:baseline; gap:12px;}
+  .brand .tag{
+    font-family:'Barlow Condensed'; font-weight:700; font-size:11px; letter-spacing:.28em;
+    color:var(--amber); border:1px solid var(--amber-dim); padding:3px 8px; border-radius:2px;
+  }
+  h1{
+    font-family:'Barlow Condensed'; font-weight:700; font-size:28px; letter-spacing:.03em;
+    margin:0; color:var(--text);
+  }
+  .clock{font-family:'Space Mono'; color:var(--cyan); font-size:14px; letter-spacing:.05em;}
+  .subtitle{max-width:920px;margin:6px auto 0; color:var(--muted); font-size:13.5px;}
+
+  main{max-width:920px; margin:0 auto; padding:0 20px;}
+
+  /* ---- Control panel ---- */
+  .panel{
+    margin-top:22px; background:var(--board); border:1px solid var(--board-edge);
+    border-radius:6px; padding:16px 18px;
+  }
+  .panel-title{
+    font-family:'Barlow Condensed'; font-weight:600; font-size:12px; letter-spacing:.18em;
+    color:var(--muted); text-transform:uppercase; margin:0 0 10px;
+  }
+  .chips{display:flex; flex-wrap:wrap; gap:8px;}
+  .chip{
+    font-family:'Barlow Condensed'; font-weight:600; font-size:14px; letter-spacing:.02em;
+    padding:7px 13px; border-radius:20px; border:1px solid var(--board-edge); background:#0f1520;
+    color:var(--muted); cursor:pointer; user-select:none; transition:.15s;
+  }
+  .chip:hover{border-color:var(--amber-dim); color:var(--text);}
+  .chip.active{background:rgba(245,166,35,.12); border-color:var(--amber); color:var(--amber);}
+  .row-split{display:flex; gap:22px; flex-wrap:wrap; margin-top:14px;}
+  .subgroup{flex:1; min-width:220px;}
+
+  /* ---- Mode tabs ---- */
+  .modes{display:flex; gap:10px; margin-top:18px;}
+  .mode-btn{
+    flex:1; text-align:center; padding:12px 10px; border-radius:6px;
+    border:1px solid var(--board-edge); background:var(--board);
+    font-family:'Barlow Condensed'; font-weight:700; font-size:16px; letter-spacing:.04em;
+    color:var(--muted); cursor:pointer; transition:.15s;
+  }
+  .mode-btn.active{ border-color:var(--amber); color:var(--amber); background:rgba(245,166,35,.08);}
+
+  .stat-strip{
+    display:flex; gap:18px; margin-top:14px; padding:10px 4px; flex-wrap:wrap;
+    font-family:'Space Mono'; font-size:12.5px; color:var(--muted);
+  }
+  .stat-strip b{color:var(--text); font-weight:700;}
+
+  /* ---- Flashcard ---- */
+  .stage{margin-top:22px; display:flex; flex-direction:column; align-items:center;}
+  .empty-msg{color:var(--muted); text-align:center; padding:60px 20px; font-size:14px;}
+
+  .flip-wrap{ width:100%; max-width:520px; perspective:1400px; }
+  .flip-card{
+    position:relative; width:100%; height:260px; cursor:pointer;
+    transform-style:preserve-3d; transition:transform .5s cubic-bezier(.2,.8,.2,1);
+  }
+  .flip-card.flipped{transform:rotateY(180deg);}
+  .face{
+    position:absolute; inset:0; backface-visibility:hidden;
+    border-radius:10px; border:1px solid var(--board-edge);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:linear-gradient(180deg,#182130,#111826);
+    box-shadow:0 12px 30px rgba(0,0,0,.4), inset 0 0 0 1px rgba(255,255,255,.02);
+    padding:20px;
+  }
+  .face.back{transform:rotateY(180deg);}
+  .region-badge{
+    position:absolute; top:14px; left:16px; font-family:'Barlow Condensed'; font-weight:700;
+    font-size:11px; letter-spacing:.2em; color:var(--muted); text-transform:uppercase;
+  }
+  .tap-hint{position:absolute; bottom:12px; right:16px; font-size:11px; color:var(--muted); font-family:'Space Mono';}
+  .city-zh{font-family:'Barlow Condensed'; font-weight:700; font-size:44px; text-align:center; line-height:1.15;}
+  .city-en{font-family:'Space Mono'; color:var(--cyan); font-size:14px; margin-top:8px; letter-spacing:.03em;}
+
+  .code-block{display:flex; gap:36px; margin-top:4px;}
+  .code-unit{text-align:center;}
+  .code-label{font-family:'Barlow Condensed'; font-size:11px; letter-spacing:.25em; color:var(--muted); margin-bottom:6px;}
+  .flap-letters{display:flex; gap:4px;}
+  .flap{
+    width:34px; height:44px; background:#0c1119; border:1px solid var(--board-edge); border-radius:4px;
+    display:flex; align-items:center; justify-content:center;
+    font-family:'Space Mono'; font-weight:700; font-size:22px; color:var(--amber);
+    box-shadow: inset 0 -1px 0 rgba(255,255,255,.05);
+    opacity:0; transform:translateY(6px) rotateX(45deg); transition:opacity .28s, transform .28s;
+  }
+  .flap.show{opacity:1; transform:translateY(0) rotateX(0);}
+  .flap::after{content:""; position:absolute; width:34px; height:1px; background:rgba(0,0,0,.5); }
+
+  .rate-row{display:flex; gap:12px; margin-top:22px; width:100%; max-width:520px;}
+  .rate-btn{
+    flex:1; padding:13px; border-radius:6px; border:1px solid var(--board-edge); background:var(--board);
+    font-family:'Barlow Condensed'; font-weight:700; font-size:15px; letter-spacing:.03em; cursor:pointer; color:var(--text);
+  }
+  .rate-btn.no{color:var(--bad); border-color:#4a2825;}
+  .rate-btn.no:hover{background:rgba(224,96,90,.1);}
+  .rate-btn.yes{color:var(--good); border-color:#254a30;}
+  .rate-btn.yes:hover{background:rgba(87,194,106,.1);}
+  .nav-row{display:flex; justify-content:space-between; width:100%; max-width:520px; margin-top:10px;}
+  .ghost-btn{background:none; border:none; color:var(--muted); font-family:'Space Mono'; font-size:12px; cursor:pointer; padding:6px;}
+  .ghost-btn:hover{color:var(--amber);}
+
+  /* ---- Quiz ---- */
+  .quiz-card{
+    width:100%; max-width:520px; background:linear-gradient(180deg,#182130,#111826);
+    border:1px solid var(--board-edge); border-radius:10px; padding:26px 22px;
+  }
+  .quiz-prompt{text-align:center;}
+  .quiz-prompt .lbl{font-family:'Barlow Condensed'; font-size:12px; letter-spacing:.22em; color:var(--muted);}
+  .quiz-prompt .city-zh{margin-top:8px;}
+  .options{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:22px;}
+  .opt{
+    padding:14px 10px; border-radius:6px; border:1px solid var(--board-edge); background:#0f1520;
+    font-family:'Space Mono'; font-size:17px; letter-spacing:.04em; text-align:center; cursor:pointer; color:var(--text);
+  }
+  .opt:hover{border-color:var(--amber-dim);}
+  .opt.correct{border-color:var(--good); background:rgba(87,194,106,.12); color:var(--good);}
+  .opt.wrong{border-color:var(--bad); background:rgba(224,96,90,.12); color:var(--bad);}
+  .opt[disabled]{cursor:default;}
+  .quiz-footer{display:flex; justify-content:space-between; align-items:center; margin-top:18px;}
+  .next-btn{
+    padding:10px 20px; border-radius:6px; background:var(--amber); color:#12160f; border:none;
+    font-family:'Barlow Condensed'; font-weight:700; font-size:14px; letter-spacing:.03em; cursor:pointer;
+    opacity:0; pointer-events:none; transition:.2s;
+  }
+  .next-btn.show{opacity:1; pointer-events:auto;}
+  .streak{font-family:'Space Mono'; font-size:12px; color:var(--muted);}
+
+  footer{max-width:920px; margin:34px auto 0; padding:0 20px; color:var(--muted); font-size:11.5px; text-align:center; font-family:'Space Mono';}
+
+  @media (max-width:520px){
+    .city-zh{font-size:34px;}
+    .code-block{gap:20px;}
+    .flap{width:26px; height:36px; font-size:17px;}
+    .options{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="hdr-row">
+    <div class="brand">
+      <span class="tag">DEP</span>
+      <h1>地名代字記憶站</h1>
+    </div>
+    <div class="clock mono" id="clock">--:--:--</div>
+  </div>
+  <div class="subtitle">機場城市代碼練習 · IATA / ICAO</div>
+</header>
+
+<main>
+  <div class="panel">
+    <p class="panel-title">選擇地區</p>
+    <div class="chips" id="regionChips"></div>
+    <div class="row-split">
+      <div class="subgroup">
+        <p class="panel-title">測驗代碼</p>
+        <div class="chips" id="fieldChips">
+          <div class="chip active" data-field="iata">IATA</div>
+          <div class="chip" data-field="icao">ICAO</div>
+          <div class="chip" data-field="both">兩者皆考</div>
+        </div>
+      </div>
+      <div class="subgroup">
+        <p class="panel-title">出題方向（選擇題模式）</p>
+        <div class="chips" id="dirChips">
+          <div class="chip active" data-dir="c2i">看地名 → 猜代碼</div>
+          <div class="chip" data-dir="i2c">看代碼 → 猜地名</div>
+          <div class="chip" data-dir="mix">混合出題</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modes">
+    <div class="mode-btn active" data-mode="flash">字卡模式</div>
+    <div class="mode-btn" data-mode="quiz">選擇題模式</div>
+  </div>
+
+  <div class="stat-strip" id="statStrip"></div>
+
+  <div class="stage" id="stage"></div>
+</main>
+
+<footer>資料來源：使用者上傳之地名代字對照表 &middot; KTI／VDTI 為柬埔寨新啟用之德崇國際機場（金邊）</footer>
+
+<script>
+// ---------------- Data ----------------
+const DATA = [
+  // 日本
+  {r:"日本",zh:"成田",en:"Narita",i:"NRT",o:"RJAA"},
+  {r:"日本",zh:"大阪/關西",en:"Kansai",i:"KIX",o:"RJBB"},
+  {r:"日本",zh:"神戶",en:"Kobe",i:"UKB",o:"RJBE"},
+  {r:"日本",zh:"札幌",en:"Chitose",i:"CTS",o:"RJCC"},
+  {r:"日本",zh:"函館",en:"Hakodate",i:"HKD",o:"RJCH"},
+  {r:"日本",zh:"旭川",en:"Asahikawa",i:"AKJ",o:"RJEC"},
+  {r:"日本",zh:"福岡",en:"Fukuoka",i:"FUK",o:"RJFF"},
+  {r:"日本",zh:"鹿兒島",en:"Kagoshima",i:"KOJ",o:"RJFK"},
+  {r:"日本",zh:"宮崎",en:"Miyazaki",i:"KMI",o:"RJFM"},
+  {r:"日本",zh:"大分",en:"Oita",i:"OIT",o:"RJFO"},
+  {r:"日本",zh:"佐賀",en:"Saga",i:"HSG",o:"RJFS"},
+  {r:"日本",zh:"熊本",en:"Kumamoto",i:"KMJ",o:"RJFT"},
+  {r:"日本",zh:"名古屋",en:"Chubu",i:"NGO",o:"RJGG"},
+  {r:"日本",zh:"小松",en:"Komatsu",i:"KMQ",o:"RJNK"},
+  {r:"日本",zh:"廣島",en:"Hiroshima",i:"HIJ",o:"RJOA"},
+  {r:"日本",zh:"岡山",en:"Okayama",i:"OKJ",o:"RJOB"},
+  {r:"日本",zh:"米子",en:"Yonago",i:"YGJ",o:"RJOH"},
+  {r:"日本",zh:"高知",en:"Kochi",i:"KCZ",o:"RJOK"},
+  {r:"日本",zh:"松山",en:"Matsuyama",i:"MYJ",o:"RJOM"},
+  {r:"日本",zh:"高松",en:"Takamatsu",i:"TAK",o:"RJOT"},
+  {r:"日本",zh:"青森",en:"Aomori",i:"AOJ",o:"RJSA"},
+  {r:"日本",zh:"福島",en:"Fukushima",i:"FKS",o:"RJSF"},
+  {r:"日本",zh:"花卷",en:"Hanamaki",i:"HNA",o:"RJSI"},
+  {r:"日本",zh:"秋田",en:"Akita",i:"AXT",o:"RJSK"},
+  {r:"日本",zh:"新潟",en:"Niigata",i:"KIJ",o:"RJSN"},
+  {r:"日本",zh:"仙台",en:"Sendai",i:"SDJ",o:"RJSS"},
+  {r:"日本",zh:"羽田",en:"Haneda",i:"HND",o:"RJTT"},
+  {r:"日本",zh:"沖繩",en:"Okinawa",i:"OKA",o:"ROAH"},
+  {r:"日本",zh:"石垣島",en:"Ishigaki",i:"ISG",o:"ROIG"},
+  {r:"日本",zh:"宮古島/下地島",en:"Shimoji-shima",i:"SHI",o:"RORS"},
+  // 韓國
+  {r:"韓國",zh:"濟州",en:"Jeju",i:"CJU",o:"RKPC"},
+  {r:"韓國",zh:"釜山",en:"Busan",i:"PUS",o:"RKPK"},
+  {r:"韓國",zh:"仁川",en:"Incheon",i:"ICN",o:"RKSI"},
+  {r:"韓國",zh:"大邱",en:"Daegu",i:"TAE",o:"RKTN"},
+  {r:"韓國",zh:"清州",en:"Cheongju",i:"CJJ",o:"RKTU"},
+  // 大陸
+  {r:"大陸",zh:"香港",en:"Hong Kong",i:"HKG",o:"VHHH"},
+  {r:"大陸",zh:"澳門",en:"Macau",i:"MFM",o:"VMMC"},
+  {r:"大陸",zh:"北京",en:"Beijing",i:"PEK",o:"ZBAA"},
+  {r:"大陸",zh:"廣州",en:"Guangzhou",i:"CAN",o:"ZGGG"},
+  {r:"大陸",zh:"深圳",en:"Shenzhen",i:"SZX",o:"ZGSZ"},
+  {r:"大陸",zh:"鄭州",en:"Zhengzhou",i:"CGO",o:"ZHCC"},
+  {r:"大陸",zh:"武漢",en:"Wuhan",i:"WUH",o:"ZHHH"},
+  {r:"大陸",zh:"廈門",en:"Xiamen",i:"XMN",o:"ZSAM"},
+  {r:"大陸",zh:"福州",en:"Fuzhou",i:"FOC",o:"ZSFZ"},
+  {r:"大陸",zh:"杭州",en:"Hangzhou",i:"HGH",o:"ZSHC"},
+  {r:"大陸",zh:"南京",en:"Nanjing",i:"NKG",o:"ZSNJ"},
+  {r:"大陸",zh:"上海/浦東",en:"Pudong",i:"PVG",o:"ZSPD"},
+  {r:"大陸",zh:"青島",en:"Qingdao",i:"TAO",o:"ZSQD"},
+  {r:"大陸",zh:"寧波",en:"Ningbo",i:"NGB",o:"ZSNB"},
+  {r:"大陸",zh:"重慶",en:"Chongqing",i:"CKG",o:"ZUCK"},
+  {r:"大陸",zh:"成都/天府",en:"Tianfu",i:"TFU",o:"ZUTF"},
+  // 東南亞
+  {r:"東南亞",zh:"克拉克",en:"Clark",i:"CRK",o:"RPLC"},
+  {r:"東南亞",zh:"馬尼拉",en:"Manila",i:"MNL",o:"RPLL"},
+  {r:"東南亞",zh:"宿霧",en:"Cebu",i:"CEB",o:"RPVM"},
+  {r:"東南亞",zh:"孟買",en:"Mumbai",i:"BOM",o:"VABB"},
+  {r:"東南亞",zh:"德里",en:"Delhi",i:"DEL",o:"VIDP"},
+  {r:"東南亞",zh:"廊曼",en:"Don Mueang",i:"DMK",o:"VTBD"},
+  {r:"東南亞",zh:"曼谷",en:"Suvarnabhumi",i:"BKK",o:"VTBS"},
+  {r:"東南亞",zh:"清邁",en:"Chiang Mai",i:"CNX",o:"VTCC"},
+  {r:"東南亞",zh:"金蘭",en:"Cam Ranh",i:"CXR",o:"VVCR"},
+  {r:"東南亞",zh:"峴港",en:"Da Nang",i:"DAD",o:"VVDN"},
+  {r:"東南亞",zh:"河內",en:"Hanoi",i:"HAN",o:"VVNB"},
+  {r:"東南亞",zh:"富國島",en:"Phu Quoc",i:"PQC",o:"VVPQ"},
+  {r:"東南亞",zh:"胡志明市",en:"Ho Chi Minh",i:"SGN",o:"VVTS"},
+  {r:"東南亞",zh:"仰光",en:"Yangon",i:"RGN",o:"VYYY"},
+  {r:"東南亞",zh:"峇里島",en:"Bali",i:"DPS",o:"WADD"},
+  {r:"東南亞",zh:"亞庇",en:"Kota Kinabalu",i:"BKI",o:"WBKK"},
+  {r:"東南亞",zh:"汶萊",en:"Brunei",i:"BWN",o:"WBSB"},
+  {r:"東南亞",zh:"雅加達",en:"Jakarta",i:"CGK",o:"WIII"},
+  {r:"東南亞",zh:"吉隆坡",en:"Kuala Lumpur",i:"KUL",o:"WMKK"},
+  {r:"東南亞",zh:"檳城",en:"Penang",i:"PEN",o:"WMKP"},
+  {r:"東南亞",zh:"新加坡",en:"Singapore",i:"SIN",o:"WSSS"},
+  {r:"東南亞",zh:"德崇（柬埔寨）",en:"Techo",i:"KTI",o:"VDTI"},
+  // 中東
+  {r:"中東",zh:"伊斯坦堡",en:"Istanbul",i:"IST",o:"LTFM"},
+  {r:"中東",zh:"阿布達比",en:"Abu Dhabi",i:"AUH",o:"OMAA"},
+  {r:"中東",zh:"杜拜",en:"Dubai",i:"DXB",o:"OMDB"},
+  {r:"中東",zh:"巴庫",en:"Baku",i:"GYD",o:"UBBB"},
+  // 大洋洲
+  {r:"大洋洲",zh:"奧克蘭",en:"Auckland",i:"AKL",o:"NZAA"},
+  {r:"大洋洲",zh:"帛琉",en:"Palau",i:"ROR",o:"PTRO"},
+  {r:"大洋洲",zh:"布里斯本",en:"Brisbane",i:"BNE",o:"YBBN"},
+  {r:"大洋洲",zh:"雪梨",en:"Sydney",i:"SYD",o:"YSSY"},
+  // 美洲
+  {r:"美洲",zh:"溫哥華",en:"Vancouver",i:"YVR",o:"CYVR"},
+  {r:"美洲",zh:"多倫多",en:"Toronto",i:"YYZ",o:"CYYZ"},
+  {r:"美洲",zh:"達拉斯/沃斯堡",en:"Dallas/FW",i:"DFW",o:"KDFW"},
+  {r:"美洲",zh:"休士頓",en:"Houston",i:"IAH",o:"KIAH"},
+  {r:"美洲",zh:"紐約",en:"New York",i:"JFK",o:"KJFK"},
+  {r:"美洲",zh:"洛杉磯",en:"Los Angeles",i:"LAX",o:"KLAX"},
+  {r:"美洲",zh:"安大略",en:"Ontario",i:"ONT",o:"KONT"},
+  {r:"美洲",zh:"芝加哥",en:"Chicago",i:"ORD",o:"KORD"},
+  {r:"美洲",zh:"鳳凰城",en:"Phoenix",i:"PHX",o:"KPHX"},
+  {r:"美洲",zh:"西雅圖",en:"Seattle",i:"SEA",o:"KSEA"},
+  {r:"美洲",zh:"舊金山",en:"San Francisco",i:"SFO",o:"KSFO"},
+  {r:"美洲",zh:"安克拉治",en:"Anchorage",i:"ANC",o:"PANC"},
+  {r:"美洲",zh:"關島",en:"Guam",i:"GUM",o:"PGUM"},
+  // 歐洲
+  {r:"歐洲",zh:"法蘭克福",en:"Frankfurt",i:"FRA",o:"EDDF"},
+  {r:"歐洲",zh:"慕尼黑",en:"Munich",i:"MUC",o:"EDDM"},
+  {r:"歐洲",zh:"倫敦",en:"London",i:"LHR",o:"EGLL"},
+  {r:"歐洲",zh:"阿姆斯特丹",en:"Amsterdam",i:"AMS",o:"EHAM"},
+  {r:"歐洲",zh:"巴黎",en:"Paris",i:"CDG",o:"LFPG"},
+  {r:"歐洲",zh:"米蘭",en:"Milan",i:"MXP",o:"LIMC"},
+  {r:"歐洲",zh:"羅馬",en:"Rome",i:"FCO",o:"LIRF"},
+  {r:"歐洲",zh:"布拉格",en:"Prague",i:"PRG",o:"LKPR"},
+  {r:"歐洲",zh:"維也納",en:"Vienna",i:"VIE",o:"LOWW"},
+];
+
+const REGIONS = ["日本","韓國","大陸","東南亞","中東","大洋洲","美洲","歐洲"];
+
+// ---------------- State ----------------
+let state = {
+  regions: new Set(REGIONS),
+  field: "iata", // iata | icao | both
+  mode: "flash", // flash | quiz
+  dir: "c2i", // c2i (city->code) | i2c (code->city) | mix
+  pool: [],
+  idx: 0,
+  flipped: false,
+  known: 0,
+  unknown: 0,
+  quizScore: 0,
+  quizTotal: 0,
+  quizAnswered: false,
+};
+
+function activeField(){
+  if(state.field === "both") return Math.random() < 0.5 ? "i" : "o";
+  return state.field === "iata" ? "i" : "o";
+}
+function fieldLabel(f){ return f === "i" ? "IATA" : "ICAO"; }
+
+function rebuildPool(){
+  state.pool = DATA.filter(d => state.regions.has(d.r));
+  shuffle(state.pool);
+  state.idx = 0;
+  state.flipped = false;
+}
+function shuffle(arr){
+  for(let i=arr.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [arr[i],arr[j]]=[arr[j],arr[i]];
+  }
+}
+
+// ---------------- Rendering ----------------
+const stage = document.getElementById("stage");
+const statStrip = document.getElementById("statStrip");
+
+function renderChips(){
+  const rc = document.getElementById("regionChips");
+  rc.innerHTML = "";
+  REGIONS.forEach(r=>{
+    const el = document.createElement("div");
+    el.className = "chip" + (state.regions.has(r) ? " active" : "");
+    el.textContent = r;
+    el.onclick = ()=>{
+      if(state.regions.has(r)){
+        if(state.regions.size>1) state.regions.delete(r);
+      } else {
+        state.regions.add(r);
+      }
+      renderChips();
+      rebuildPool();
+      render();
+    };
+    rc.appendChild(el);
+  });
+}
+
+document.getElementById("fieldChips").addEventListener("click",(e)=>{
+  const chip = e.target.closest(".chip");
+  if(!chip) return;
+  [...document.getElementById("fieldChips").children].forEach(c=>c.classList.remove("active"));
+  chip.classList.add("active");
+  state.field = chip.dataset.field;
+  if(state.mode === "quiz") newQuizQuestion();
+  render();
+});
+
+document.getElementById("dirChips").addEventListener("click",(e)=>{
+  const chip = e.target.closest(".chip");
+  if(!chip) return;
+  [...document.getElementById("dirChips").children].forEach(c=>c.classList.remove("active"));
+  chip.classList.add("active");
+  state.dir = chip.dataset.dir;
+  if(state.mode === "quiz") newQuizQuestion();
+  render();
+});
+
+document.querySelectorAll(".mode-btn").forEach(btn=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll(".mode-btn").forEach(b=>b.classList.remove("active"));
+    btn.classList.add("active");
+    state.mode = btn.dataset.mode;
+    if(state.mode === "quiz") newQuizQuestion();
+    render();
+  };
+});
+
+function renderStats(){
+  if(state.mode === "flash"){
+    statStrip.innerHTML =
+      `<span>字卡進度 <b>${state.pool.length ? state.idx+1 : 0}/${state.pool.length}</b></span>` +
+      `<span>熟悉 <b style="color:var(--good)">${state.known}</b></span>` +
+      `<span>不熟 <b style="color:var(--bad)">${state.unknown}</b></span>`;
+  } else {
+    const pct = state.quizTotal ? Math.round(state.quizScore/state.quizTotal*100) : 0;
+    statStrip.innerHTML =
+      `<span>答對 <b style="color:var(--good)">${state.quizScore}</b> / ${state.quizTotal}</span>` +
+      `<span>正確率 <b>${pct}%</b></span>`;
+  }
+}
+
+function render(){
+  renderStats();
+  if(state.pool.length === 0){
+    stage.innerHTML = `<div class="empty-msg">請至少選擇一個地區</div>`;
+    return;
+  }
+  if(state.mode === "flash") renderFlash();
+  else renderQuiz();
+}
+
+// ---------- Flashcard mode ----------
+function renderFlash(){
+  const item = state.pool[state.idx];
+  stage.innerHTML = `
+    <div class="flip-wrap">
+      <div class="flip-card ${state.flipped ? 'flipped':''}" id="flipCard">
+        <div class="face front">
+          <div class="region-badge">${item.r}</div>
+          <div class="city-zh">${item.zh}</div>
+          <div class="city-en">${item.en}</div>
+          <div class="tap-hint">點卡片翻面 ▸</div>
+        </div>
+        <div class="face back">
+          <div class="region-badge">${item.r}</div>
+          <div class="code-block">
+            <div class="code-unit">
+              <div class="code-label">IATA</div>
+              <div class="flap-letters" id="iataFlaps"></div>
+            </div>
+            <div class="code-unit">
+              <div class="code-label">ICAO</div>
+              <div class="flap-letters" id="icaoFlaps"></div>
+            </div>
+          </div>
+          <div class="tap-hint">點卡片翻回 ▸</div>
+        </div>
+      </div>
+    </div>
+    <div class="rate-row">
+      <div class="rate-btn no" id="btnNo">✕ 不熟</div>
+      <div class="rate-btn yes" id="btnYes">✓ 熟悉</div>
+    </div>
+    <div class="nav-row">
+      <div class="ghost-btn" id="prevBtn">‹ 上一張</div>
+      <div class="ghost-btn" id="shuffleBtn">重新洗牌</div>
+      <div class="ghost-btn" id="nextBtn">下一張 ›</div>
+    </div>
+  `;
+  const card = document.getElementById("flipCard");
+  card.onclick = ()=>{
+    state.flipped = !state.flipped;
+    card.classList.toggle("flipped");
+    if(state.flipped) staggerFlaps(item);
+  };
+  document.getElementById("btnYes").onclick = (e)=>{ e.stopPropagation(); state.known++; advance(); };
+  document.getElementById("btnNo").onclick = (e)=>{ e.stopPropagation(); state.unknown++; advance(); };
+  document.getElementById("nextBtn").onclick = ()=> advance();
+  document.getElementById("prevBtn").onclick = ()=>{
+    state.idx = (state.idx - 1 + state.pool.length) % state.pool.length;
+    state.flipped = false;
+    render();
+  };
+  document.getElementById("shuffleBtn").onclick = ()=>{
+    shuffle(state.pool);
+    state.idx = 0;
+    state.flipped = false;
+    render();
+  };
+}
+function advance(){
+  state.idx = (state.idx + 1) % state.pool.length;
+  state.flipped = false;
+  render();
+}
+function staggerFlaps(item){
+  buildFlaps("iataFlaps", item.i);
+  buildFlaps("icaoFlaps", item.o);
+}
+function buildFlaps(containerId, code){
+  const c = document.getElementById(containerId);
+  c.innerHTML = "";
+  [...code].forEach((ch,i)=>{
+    const f = document.createElement("div");
+    f.className = "flap";
+    f.textContent = ch;
+    c.appendChild(f);
+    setTimeout(()=>f.classList.add("show"), 60*i);
+  });
+}
+
+// ---------- Quiz mode ----------
+let currentQuiz = null;
+function activeDir(){
+  if(state.dir === "mix") return Math.random() < 0.5 ? "c2i" : "i2c";
+  return state.dir;
+}
+function newQuizQuestion(){
+  if(state.pool.length === 0) return;
+  const idx = Math.floor(Math.random()*state.pool.length);
+  const item = state.pool[idx];
+  const f = activeField();
+  const dir = activeDir();
+
+  if(dir === "c2i"){
+    // show city, guess code
+    const correct = item[f];
+    const wrongPool = DATA.filter(d => d[f] !== correct);
+    shuffle(wrongPool);
+    const opts = [correct, ...wrongPool.slice(0,3).map(d=>d[f])];
+    shuffle(opts);
+    currentQuiz = { item, field:f, dir, correct, opts };
+  } else {
+    // show code, guess city
+    const code = item[f];
+    const correct = item.zh;
+    const wrongPool = DATA.filter(d => d.zh !== correct);
+    shuffle(wrongPool);
+    const opts = [correct, ...wrongPool.slice(0,3).map(d=>d.zh)];
+    shuffle(opts);
+    currentQuiz = { item, field:f, dir, code, correct, opts };
+  }
+  state.quizAnswered = false;
+}
+function renderQuiz(){
+  if(!currentQuiz) newQuizQuestion();
+  const { item, field, dir, correct, opts, code } = currentQuiz;
+  const promptHtml = dir === "c2i"
+    ? `
+      <div class="lbl">${item.r} &middot; 這個城市的 ${fieldLabel(field)} 代碼是？</div>
+      <div class="city-zh">${item.zh}</div>
+    `
+    : `
+      <div class="lbl">${item.r} &middot; 這個 ${fieldLabel(field)} 代碼是哪個地方？</div>
+      <div class="city-zh mono">${code}</div>
+    `;
+  stage.innerHTML = `
+    <div class="quiz-card">
+      <div class="quiz-prompt">${promptHtml}</div>
+      <div class="options" id="optWrap"></div>
+      <div class="quiz-footer">
+        <div class="streak">已作答 ${state.quizTotal} 題</div>
+        <button class="next-btn" id="nextQ">下一題 ›</button>
+      </div>
+    </div>
+  `;
+  const wrap = document.getElementById("optWrap");
+  opts.forEach(opt=>{
+    const b = document.createElement("div");
+    b.className = "opt" + (dir === "c2i" ? " mono" : "");
+    b.textContent = opt;
+    b.onclick = ()=> answerQuiz(opt, b);
+    wrap.appendChild(b);
+  });
+}
+function answerQuiz(choice, el){
+  if(state.quizAnswered) return;
+  state.quizAnswered = true;
+  const { correct } = currentQuiz;
+  state.quizTotal++;
+  const allOpts = [...document.querySelectorAll(".opt")];
+  allOpts.forEach(o=>o.setAttribute("disabled","true"));
+  if(choice === correct){
+    state.quizScore++;
+    el.classList.add("correct");
+  } else {
+    el.classList.add("wrong");
+    allOpts.find(o=>o.textContent===correct)?.classList.add("correct");
+  }
+  document.getElementById("nextQ").classList.add("show");
+  document.getElementById("nextQ").onclick = ()=>{
+    newQuizQuestion();
+    render();
+  };
+  renderStats();
+}
+
+// ---------------- Clock ----------------
+function tickClock(){
+  const d = new Date();
+  document.getElementById("clock").textContent = d.toLocaleTimeString('zh-TW',{hour12:false});
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+// ---------------- Init ----------------
+renderChips();
+rebuildPool();
+render();
+</script>
+</body>
+</html>
